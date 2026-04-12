@@ -121,7 +121,7 @@ def extract_corners(preprocessed_image):
 
 def filter_features(lines, corners, image_height, image_width):
     """
-    Filter and clean extracted features to prioritize prominent structural elements.
+    Filter and clean extracted features to prioritize prominent structural elements and removes small/insignificant detections.
     
     Args:
         lines (list): List of [(x1, y1, x2, y2), ...] 
@@ -134,19 +134,34 @@ def filter_features(lines, corners, image_height, image_width):
     """
     filtered_lines = []
     
-    # Filter lines by length: keep only lines longer than 30 pixels
+    # Only keep longer lines (no noise fragments)
     for line in lines:
         x1, y1, x2, y2 = line
         length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-        if length >= 30:
+        if length >= 70:
             filtered_lines.append(line)
     
-    # Filter corners by image bounds (remove any out-of-bounds points)
+    # Filter corners: remove duplicates and out-of-bounds
     filtered_corners = []
+    corner_threshold_distance = 30  # Min distance between corners
+    
     for corner in corners:
         x, y = corner
-        if 0 <= x < image_width and 0 <= y < image_height:
-            filtered_corners.append(corner)
+        
+        # Check if in bounds
+        if not (0 <= x < image_width and 0 <= y < image_height):
+            continue
+        
+        # Check if too close to existing corners
+        too_close = False
+        for existing_x, existing_y in filtered_corners:
+            dist = np.sqrt((x - existing_x)**2 + (y - existing_y)**2)
+            if dist < corner_threshold_distance:
+                too_close = True
+                break
+        
+        if not too_close:
+            filtered_corners.append([x, y])
     
     return filtered_lines, filtered_corners
 
@@ -188,21 +203,26 @@ def main(image_path, output_json_path):
     """
     print(f"Processing: {image_path}")
     
-    # Step 1: Preprocess
+    # Load and prep image
     gray, original = load_and_preprocess_image(image_path)
     height, width = original.shape[:2]
     print(f"Loaded image: {width}x{height}")
     
-    # Step 2: Extract features
+    # Check adaptive Canny thresholds
+    lower, upper = calculate_adaptive_canny_thresholds(gray)
+    print(f"Adaptive Canny thresholds: {lower}, {upper}")
+    
+    # Extract features
     lines = extract_lines(gray)
     corners = extract_corners(gray)
     print(f"Extracted: {len(lines)} lines, {len(corners)} corners (raw)")
     
-    # Step 3: Filter features
+    # Filter out noise
     filtered_lines, filtered_corners = filter_features(lines, corners, height, width)
     print(f"Filtered: {len(filtered_lines)} lines, {len(filtered_corners)} corners")
+    print(f"Removed: {len(lines) - len(filtered_lines)} lines, {len(corners) - len(filtered_corners)} corners")
     
-    # Step 4: Export to JSON
+    # Save to JSON
     export_to_json(filtered_lines, filtered_corners, width, height, output_json_path)
 
 
