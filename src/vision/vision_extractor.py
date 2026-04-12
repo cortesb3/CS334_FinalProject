@@ -104,12 +104,11 @@ def extract_corners(preprocessed_image):
     Returns:
         list: List of tuples [(x, y), ...] representing corners
     """
-    # goodFeaturesToTrack (Shi-Tomasi) is more robust than Harris for buildings
-    # maxCorners=200: limit number of corners to avoid too much noise
-    # qualityLevel=0.01: corners are 1% as good as the best corner
-    # minDistance=20: minimum distance between corners (prevents clustering)
-    corners = cv2.goodFeaturesToTrack(preprocessed_image, maxCorners=200,
-                                      qualityLevel=0.01, minDistance=20)
+    # maxCorners=150: get good corners only (not too many)
+    # qualityLevel=0.02: only accept quality corners (2% of best)
+    # minDistance=25: space out corners to avoid clustering
+    corners = cv2.goodFeaturesToTrack(preprocessed_image, maxCorners=150,
+                                      qualityLevel=0.02, minDistance=25)
     
     if corners is None:
         return []
