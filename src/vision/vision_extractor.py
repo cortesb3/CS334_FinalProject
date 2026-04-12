@@ -30,18 +30,44 @@ def load_and_preprocess_image(image_path):
     # Convert to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # Apply Gaussian blur to reduce noise (sky, clouds, landscaping)
-    # Kernel size (5,5) is small enough to preserve edges, but large enough to smooth noise
-    # Sigma ~1.0 controls the spread of the blur
-    blurred = cv2.GaussianBlur(gray, (5, 5), 1.0)
+    # Blur image to remove texture noise (siding, clouds, bushes)
+    # Kernel (13, 13) smooths details while preserving main structural edges
+    # Sigma 2.0 controls blur amount
+    blurred = cv2.GaussianBlur(gray, (13, 13), 2.0)
     
     return blurred, img
+
+
+def calculate_adaptive_canny_thresholds(blurred_image):
+    """
+    Calculate Canny edge detection thresholds based on image intensity statistics.
+    This makes the algorithm robust to different lighting conditions and building colors.
+    
+    Args:
+        blurred_image (np.array): Grayscale blurred image
+        
+    Returns:
+        tuple: (threshold1, threshold2) - two thresholds for cv2.Canny
+    """
+    # Calculate thresholds from median pixel intensity (avoids hardcoding)
+    median_intensity = np.median(blurred_image)
+    sigma = 0.33
+    
+    # Scale: lower ~0.66x median, upper ~1.33x median
+    lower_threshold = max(0, int((1.0 - sigma) * median_intensity))
+    upper_threshold = min(255, int((1.0 + sigma) * median_intensity))
+    
+    # Make sure lower < upper
+    lower_threshold = max(30, lower_threshold)
+    upper_threshold = max(lower_threshold + 1, upper_threshold)
+    
+    return lower_threshold, upper_threshold
 
 
 def extract_lines(preprocessed_image):
     """
     Extract straight lines from the preprocessed image using Canny edge detection
-    and Hough Line Transform.
+    and Hough Line Transform with AGGRESSIVE noise filtering.
     
     Args:
         preprocessed_image (np.array): Grayscale, blurred image
@@ -49,20 +75,17 @@ def extract_lines(preprocessed_image):
     Returns:
         list: List of tuples [(x1, y1, x2, y2), ...] representing lines
     """
-    # Apply Canny edge detection
-    # threshold1=100, threshold2=200: detect strong vs weak edges
-    # These values work well for building images with high contrast
-    # Adjust lower for faint lines, higher for noisy images
-    edges = cv2.Canny(preprocessed_image, 100, 200)
+    # Get adaptive Canny thresholds
+    lower_thresh, upper_thresh = calculate_adaptive_canny_thresholds(preprocessed_image)
+    edges = cv2.Canny(preprocessed_image, lower_thresh, upper_thresh)
     
-    # Use probabilistic Hough Line Transform (more efficient than standard Hough)
-    # cv2.HoughLinesP returns line endpoints directly: (x1, y1, x2, y2)
-    # minLineLength=50: ignore lines shorter than 50 pixels (debris, small texture)
-    # maxLineGap=20: lines separated by <20 pixels are connected
-    lines = cv2.HoughLinesP(edges, rho=1, theta=np.pi/180, threshold=50,
-                            minLineLength=50, maxLineGap=20)
+    # threshold=100: need 100+ votes to count as a line (filters small noise)
+    # minLineLength=90: ignore short fragments (siding texture, etc)
+    # maxLineGap=40: connect broken lines (shadows can break edges)
+    lines = cv2.HoughLinesP(edges, rho=1, theta=np.pi/180, threshold=100,
+                            minLineLength=90, maxLineGap=40)
     
-    # HoughLinesP returns shape (N, 1, 4), so we flatten it
+    # Reshape from (N,1,4) to list
     if lines is None:
         return []
     
