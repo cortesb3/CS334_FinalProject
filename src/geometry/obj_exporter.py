@@ -57,7 +57,9 @@ def export_obj(groups: list, output_path: str) -> None:
             # OBJ indices are 1-based; add the group's vertex offset
             lines.append(f"f {i+offset} {j+offset} {k+offset}")
 
-    Path(output_path).write_text("\n".join(lines) + "\n")
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -66,25 +68,38 @@ def export_obj(groups: list, output_path: str) -> None:
 
 def export_mesh(shell_verts: list, shell_faces: list,
                 beam_verts: list,  beam_faces: list,
-                output_path: str) -> dict:
+                output_path: str,
+                surface_verts: list = None,   surface_faces: list = None,
+                topology_verts: list = None,  topology_faces: list = None,
+                dense_verts: list = None,     dense_faces: list = None) -> dict:
     """
-    Write shell and beam groups to an OBJ file and return a summary dict.
+    Write shell, beam, and optional extra groups to an OBJ file.
 
-    Either group may be empty (pass [] for both verts and faces).
+    Any group may be omitted (pass None or []).
 
     Returns:
         {"vertices": int, "faces": int, "path": str}
     """
     groups = []
     if shell_verts:
-        groups.append({"name": "shell", "vertices": shell_verts, "faces": shell_faces})
+        groups.append({"name": "shell",    "vertices": shell_verts,    "faces": shell_faces})
     if beam_verts:
-        groups.append({"name": "beams", "vertices": beam_verts,  "faces": beam_faces})
+        groups.append({"name": "beams",    "vertices": beam_verts,     "faces": beam_faces})
+    if surface_verts and surface_faces:
+        groups.append({"name": "surface",  "vertices": surface_verts,  "faces": surface_faces})
+    if topology_verts and topology_faces:
+        groups.append({"name": "topology", "vertices": topology_verts, "faces": topology_faces})
+    if dense_verts and dense_faces:
+        groups.append({"name": "dense",    "vertices": dense_verts,    "faces": dense_faces})
 
     export_obj(groups, output_path)
 
-    total_verts = len(shell_verts) + len(beam_verts)
-    total_faces = len(shell_faces) + len(beam_faces)
+    total_verts = (len(shell_verts) + len(beam_verts)
+                   + len(surface_verts  or []) + len(topology_verts or [])
+                   + len(dense_verts    or []))
+    total_faces = (len(shell_faces) + len(beam_faces)
+                   + len(surface_faces  or []) + len(topology_faces or [])
+                   + len(dense_faces    or []))
     return {"vertices": total_verts, "faces": total_faces, "path": output_path}
 
 

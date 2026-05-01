@@ -17,6 +17,7 @@ Example:
 
 import sys
 import json
+import numpy as np
 from pathlib import Path
 
 # --- Import Bea's vision module ---
@@ -73,6 +74,11 @@ def run_pipeline(image_path: str, output_path: str) -> dict:
     # --- Emma's pipeline ---
     depth_map = estimate_depth(image_path)
 
+    # Save raw depth map so the geometry engine can build a dense surface
+    depth_npy_path = str(Path(output_path).with_suffix("")) + "_depth.npy"
+    np.save(depth_npy_path, depth_map)
+    print(f"Depth map saved to: {depth_npy_path}")
+
     # Enrich corners with Z
     enriched_corners = []
     for corner in manifest["corners"]:
@@ -99,6 +105,7 @@ def run_pipeline(image_path: str, output_path: str) -> dict:
         "image_width": width,
         "image_height": height,
         "depth_source": image_path,
+        "depth_map_path": depth_npy_path,
         "corners": enriched_corners,
         "lines": enriched_lines,
     }

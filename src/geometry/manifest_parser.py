@@ -18,8 +18,48 @@ Usage (standalone test):
 """
 
 import json
+import math
 import sys
 from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Line deduplication (pixel space)
+# ---------------------------------------------------------------------------
+
+def _px_dist(ax, ay, bx, by):
+    return math.sqrt((ax - bx) ** 2 + (ay - by) ** 2)
+
+
+def _lines_similar(l1, l2, thresh):
+    """True if both endpoint pairs of l1 and l2 are within thresh pixels."""
+    fwd = (_px_dist(l1["x1"], l1["y1"], l2["x1"], l2["y1"]) < thresh and
+           _px_dist(l1["x2"], l1["y2"], l2["x2"], l2["y2"]) < thresh)
+    rev = (_px_dist(l1["x1"], l1["y1"], l2["x2"], l2["y2"]) < thresh and
+           _px_dist(l1["x2"], l1["y2"], l2["x1"], l2["y1"]) < thresh)
+    return fwd or rev
+
+
+def deduplicate_lines(raw_lines: list, threshold_px: float = 15.0) -> list:
+    """
+    Remove near-duplicate lines from the raw pixel-space line list.
+
+    Two lines are considered duplicates when both endpoint pairs land within
+    threshold_px pixels of each other (either direction). The first occurrence
+    is kept; all subsequent near-duplicates are dropped.
+
+    Args:
+        raw_lines    : list of dicts with keys x1, y1, x2, y2 (pixel coords).
+        threshold_px : endpoint proximity threshold in pixels (default 15).
+
+    Returns:
+        Filtered list with duplicates removed.
+    """
+    kept = []
+    for line in raw_lines:
+        if not any(_lines_similar(line, k, threshold_px) for k in kept):
+            kept.append(line)
+    return kept
 
 
 # ---------------------------------------------------------------------------
@@ -98,9 +138,10 @@ def normalize_to_world(manifest: dict,
         pt = _pixel_to_world(c["x"], c["y"], pz, w, h, world_scale, depth_scale)
         corners_3d.append(pt)
 
-    # --- lines ---------------------------------------------------------
+    # --- lines (deduplicated before normalization) ----------------------
+    raw_lines = deduplicate_lines(manifest["lines"])
     lines_3d = []
-    for seg in manifest["lines"]:
+    for seg in raw_lines:
         z1 = seg.get("z1", 0.0)
         z2 = seg.get("z2", 0.0)
         p1 = _pixel_to_world(seg["x1"], seg["y1"], z1, w, h, world_scale, depth_scale)
@@ -150,7 +191,8 @@ if __name__ == "__main__":
     print(f"Image size : {result['raw']['image_width']} x {result['raw']['image_height']} px")
     print(f"World scale: {result['world_scale']} units  |  Depth scale: {result['depth_scale']} units")
     print(f"Corners    : {len(corners)}")
-    print(f"Lines      : {len(lines)}")
+    print(f"Lines      : {len(lines)}  (raw: {len(result['raw']['lines'])}, "
+          f"removed {len(result['raw']['lines']) - len(lines)} duplicates)")
 
     print("\nFirst 5 corners (world-space x, y, z):")
     for pt in corners[:5]:
