@@ -9,7 +9,6 @@ import cv2
 import numpy as np
 import json
 import sys
-from pathlib import Path
 
 
 def load_and_preprocess_image(image_path):
