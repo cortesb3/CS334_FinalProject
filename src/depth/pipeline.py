@@ -23,7 +23,7 @@ from pathlib import Path
 # Assumes this script lives in src/depth/ and Bea's code is in src/vision/
 vision_path = Path(__file__).parent.parent / "vision"
 sys.path.insert(0, str(vision_path))
-from vision_extractor import load_and_preprocess_image, extract_lines, extract_corners, filter_features, export_to_json
+from vision_extractor import load_and_preprocess_image, extract_lines, extract_corners, filter_features
 
 # --- Import Emma's depth module ---
 from depth_estimator import estimate_depth, get_depth_at_point

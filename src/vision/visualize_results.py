@@ -6,7 +6,6 @@ Helps verify that feature extraction is working correctly.
 import cv2
 import json
 import sys
-from pathlib import Path
 
 
 def visualize_extraction(image_path, json_path, output_path):
